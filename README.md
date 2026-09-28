@@ -1,23 +1,29 @@
-# MetaSkill Lab
+# Learning Meta-Skills for Agent Harness Design in Test-Time AI4AI
 
-一个独立的 Builder → Harness → Target → 公开反馈 → Skill → Refine 核心。Builder 为任务分布构建可复用环境，Target 在具体任务中使用环境；Builder 从训练执行中总结 `when / provide / use` 支持技能，再修订环境。构建和修订只做接口修复，不按 Target 分数挑选候选。
+This is the official repository for the paper **Learning Meta-Skills for Agent Harness Design in Test-Time AI4AI**.
 
-## 内容
+![Overview of the MetaSkill learning and test-time harness design method](assets/method.png)
 
-- **七种组件**：`instruction`、`memory`、`tools`、`context`、`controller`、`verification`、`workspace`。关闭的组件写 `null`；打开的组件提供受限 Python 函数源码。`tools` 可组合 adapter 提供的原生工具。
-- **固定边界**：JSON schema、受限源码解释器、独立任务会话、工具与 token/步数/时间预算，以及 Target 的工具循环。生成的代码不经 Python `exec` / `eval` 执行。
-- **两个角色**：Builder 只读公开分布说明、工具定义、已有 bundle/skill 和公开训练反馈；Target 执行 adapter 提供的任务与工具。原生评分或其他私有状态由 adapter 自己管理。
-- **模型**：直接调用 [OpenAI Responses API](https://developers.openai.com/api/docs/guides/function-calling) 和 [Anthropic Messages API](https://platform.claude.com/docs/en/api/messages/create)。`OPENAI_API_KEY` / `ANTHROPIC_API_KEY` 从环境变量读取。没有额外 Python 依赖。
+The figure shows how the Builder learns reusable meta-skills from public development feedback and uses them to design a harness for a Target agent. A [vector PDF of the figure](assets/method.pdf) is also available.
 
-这是一套方法内核和 adapter 接口。要运行新的 benchmark，实现 `public_tools()`、`load_task(task_id)`；可选实现 `public_feedback(result)`。`examples/catalog_adapter.py` 展示最小接法。Builder 输入的公开分布说明不包含具体测试题。
+This release contains the core Builder, harness, and Target interfaces. It is intentionally small: paper drafts, experiment outputs, plots, and the full benchmark campaign are not included.
 
-## 快速运行
+## What is included
 
-在仓库目录中：
+- **Seven harness components:** `instruction`, `memory`, `tools`, `context`, `controller`, `verification`, and `workspace`. Disabled components are `null`; enabled components contain bounded policy functions. Composed tools can call the native tools supplied by an adapter.
+- **A fixed runtime boundary:** schema validation, a restricted policy interpreter, task-local state, model and tool budgets, and the Target's tool loop. Builder-generated source is interpreted without Python `exec` or `eval`.
+- **A Builder refinement loop:** the Builder constructs a bundle, reviews a public training episode, keeps or updates a `when` / `provide` / `use` support skill, and refines the bundle. Interface repairs do not use Target scores to select candidates.
+- **Official model APIs:** [OpenAI Responses](https://developers.openai.com/api/docs/guides/function-calling) and [Anthropic Messages](https://platform.claude.com/docs/en/api/messages/create). The clients read `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` from the environment. The package has no third-party runtime dependencies.
+
+The diagram describes the paper's complete method, including test-task-specific construction and skill retrieval. This minimal release exposes the components needed to build and run harnesses; it does not include the paper's full experiment scheduler or BM25 retrieval pipeline.
+
+## Quick start
+
+From the repository root:
 
 ```sh
 python -m pip install -e .
-export OPENAI_API_KEY="..."   # 或 ANTHROPIC_API_KEY
+export OPENAI_API_KEY="..."  # Or set ANTHROPIC_API_KEY for Claude.
 
 python -m meta_skill_ai4ai build \
   --adapter examples.catalog_adapter --provider openai --model gpt-4.1-mini \
@@ -39,32 +45,34 @@ python -m meta_skill_ai4ai refine \
   --skills /tmp/meta-skills.json --output /tmp/meta-refined.json
 ```
 
-Claude 用 `--provider anthropic --model <你的 Claude 模型 ID>` 和 `ANTHROPIC_API_KEY`。Builder 与 Target 可分别指定提供方和型号。每个任务创建新会话；继续同一个任务时可在 Python API 里显式传入 `ModularSession`。模型调用、原生工具调用、token 与耗时均受 `TargetBudget` 控制。
+For Claude, use `--provider anthropic --model <Claude model ID>` and set `ANTHROPIC_API_KEY`. The Builder and Target may use different providers and models. Each task starts with a fresh session; Python callers can pass a `ModularSession` explicitly to continue the same task. `TargetBudget` limits model calls, native tool calls, tokens, and wall time.
 
-## Adapter 合约
+## Adapter interface
+
+An adapter provides the public tools and loads a concrete task only when the Target is run. See [examples/catalog_adapter.py](examples/catalog_adapter.py) for a working example.
 
 ```python
 from meta_skill_ai4ai import TargetTask, Tool, ToolResult
 
 def public_tools() -> list[Tool]:
-    # 返回任务分布共有的工具名称、描述、JSON 参数 schema 和 handler。
+    # Return the shared tool names, descriptions, JSON schemas, and handlers.
     ...
 
 def load_task(task_id: str) -> tuple[TargetTask, list[Tool]]:
-    # 这里才读取具体任务，工具名称须与 public_tools() 一致。
+    # Load a concrete task. Tool names must match public_tools().
     ...
 
-def public_feedback(result) -> dict:  # 可选
-    # 仅放入允许 Builder 看到的训练反馈。
+def public_feedback(result) -> dict:  # Optional.
+    # Include only training feedback that the Builder is allowed to see.
     ...
 ```
 
-`Tool.handler(arguments)` 返回 `ToolResult(ok, observation, error_type)`。当原生环境需要立即终止时，可设置 `terminal_reason`；基础设施错误设置 `infrastructure_failure=True`。Harness 的工作区是独立临时空间；任务原生文件与评分只通过 adapter 的工具和反馈暴露。
+`Tool.handler(arguments)` returns `ToolResult(ok, observation, error_type)`. Set `terminal_reason` when the native environment must stop immediately, or `infrastructure_failure=True` for an infrastructure error. Harness scratch files live in a separate temporary workspace. Native task files and scoring are exposed only through the adapter's tools and public feedback.
 
-## 验证
+## Tests
 
 ```sh
 python -m unittest discover -s tests -v
 ```
 
-`tests/test_workflow.py` 覆盖构建、Target 工具调用、skill 反思、refine 及两种官方接口的请求/响应形状。核心解释器和运行时沿用原仓库的 `modular-v2.0` 结构与执行边界。
+The tests cover bundle construction, a Target tool call, skill reflection, refinement, and the request and response shapes of both official API adapters. The interpreter and runtime retain the original `modular-v2.0` execution boundary.
