@@ -1,0 +1,5 @@
+{
+  "name": "Catalog lookup",
+  "distribution": "The Target answers catalog location questions using the public lookup tool.",
+  "success": "Answers use the observed catalog entry and name the correct shelf."
+}
