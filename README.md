@@ -4,9 +4,7 @@ This is the official repository for the paper **Learning Meta-Skills for Agent H
 
 ![Overview of the MetaSkill learning and test-time harness design method](assets/method.png)
 
-The figure shows how the Builder learns reusable meta-skills from public development feedback and uses them to design a harness for a Target agent. A [vector PDF of the figure](assets/method.pdf) is also available.
-
-This release contains the core Builder, harness, and Target interfaces. It is intentionally small: paper drafts, experiment outputs, plots, and the full benchmark campaign are not included.
+The figure shows how the Builder learns reusable meta-skills from public development feedback and uses them to design a harness for a Target agent. This release contains the core Builder, harness, and Target interfaces.
 
 ## What is included
 
@@ -15,7 +13,7 @@ This release contains the core Builder, harness, and Target interfaces. It is in
 - **A Builder refinement loop:** the Builder constructs a bundle, reviews a public training episode, keeps or updates a `when` / `provide` / `use` support skill, and refines the bundle. Interface repairs do not use Target scores to select candidates.
 - **Official model APIs:** [OpenAI Responses](https://developers.openai.com/api/docs/guides/function-calling) and [Anthropic Messages](https://platform.claude.com/docs/en/api/messages/create). The clients read `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` from the environment. The package has no third-party runtime dependencies.
 
-The diagram describes the paper's complete method, including test-task-specific construction and skill retrieval. This minimal release exposes the components needed to build and run harnesses; it does not include the paper's full experiment scheduler or BM25 retrieval pipeline.
+The diagram describes the paper's complete method, including test-task-specific construction and skill retrieval. This release exposes the components needed to build and run harnesses, but does not include the paper's full experiment scheduler or BM25 retrieval pipeline.
 
 ## Quick start
 
@@ -75,4 +73,9 @@ def public_feedback(result) -> dict:  # Optional.
 python -m unittest discover -s tests -v
 ```
 
-The tests cover bundle construction, a Target tool call, skill reflection, refinement, and the request and response shapes of both official API adapters. The interpreter and runtime retain the original `modular-v2.0` execution boundary.
+The tests cover bundle construction, a Target tool call, skill reflection, refinement, and the request and response shapes of both official API adapters.
+
+## Citation
+```
+TBD
+```
